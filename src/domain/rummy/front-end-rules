@@ -1,0 +1,383 @@
+public void DectectCard()
+{
+            DetectAllGroups();
+            int totalScore = AllCardsPool.Sum(t => t.Score);
+            PlayerScore.text = ((totalScore > 80) ? 80 : totalScore).ToString();
+}
+
+public void DetectAllGroups(bool SendData)
+    {
+        int i, j;
+        List<CardIdentifier> AllCardsInMeld = new List<CardIdentifier>();
+        //Debug.Log("DetectAllGroups");
+        for (i = 0; i < AllCardsPool.Length; i++)
+        {
+            for (j = 0; j < AllCardsPool[i].PoolObject.childCount; j++)
+            {
+                AllCardsInMeld.Add(AllCardsPool[i].PoolObject.GetChild(j).GetComponent<CardIdentifier>());
+            }
+            if (IsSet(new List<CardIdentifier>(AllCardsInMeld)))
+            {
+                AllCardsPool[i].PoolType = CardConstant.Set;
+            }
+            else if (IsRealSequence(new List<CardIdentifier>(AllCardsInMeld)))
+            {
+                AllCardsPool[i].PoolType = CardConstant.PureSequence;
+            }
+            else if (IsSequence(new List<CardIdentifier>(AllCardsInMeld)))
+            {
+                AllCardsPool[i].PoolType = CardConstant.InpureSequence;
+            }
+            else
+            {
+                AllCardsPool[i].PoolType = CardConstant.Invalid;
+            }
+            AllCardsInMeld.Clear();
+        }
+
+        AllMeldsArray AllMelds = new AllMeldsArray();
+        int MeldCounts = 0;
+        CardIdentifier TempIdentifier;
+        for (i = 0; i < AllCardsPool.Length; i++)
+        {
+            switch (AllCardsPool[i].PoolType)
+            {
+                case CardConstant.PureSequence:
+                case CardConstant.InpureSequence:
+                case CardConstant.Set:
+                    AllCardsPool[i].Score = 0;
+                    if (AllMelds.melds[MeldCounts] == null)
+                    {
+                        AllMelds.melds[MeldCounts] = new CardMelds();
+                    }
+                    AllMelds.melds[MeldCounts].meldType = AllCardsPool[i].PoolType;
+                    AllMelds.melds[MeldCounts].cards.Clear();
+                    for (j = 0; j < AllCardsPool[i].PoolObject.childCount; j++)
+                    {
+                        TempIdentifier = AllCardsPool[i].PoolObject.GetChild(j).GetComponent<CardIdentifier>();
+                        AllMelds.melds[MeldCounts].cards.Add(TempIdentifier.Id);
+                    }
+                    AllMelds.melds[MeldCounts].meldLocation = AllCardsPool[i].PoolObject.GetSiblingIndex();
+                    MeldCounts++;
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (SendData)
+        {
+            AllMeldsList data = new AllMeldsList();
+            for (i = 0; i < AllCardsPool.Length; i++)
+            {
+                CardMelds GroupData = new CardMelds();
+                GroupData.meldLocation = AllCardsPool[i].PoolObject.GetSiblingIndex();
+                GroupData.meldType = AllCardsPool[i].PoolType;
+                for (j = 0; j < AllCardsPool[i].PoolObject.childCount; j++)
+                {
+                    GroupData.cards.Add(AllCardsPool[i].PoolObject.GetChild(j).GetComponent<CardIdentifier>().Id);
+                }
+                data.melds.Add(GroupData);
+            }
+            if (_socketCommunication.gameObject.activeInHierarchy)
+                _socketCommunication.SyncMelds(data);
+        }
+        //Utility.myLog(JsonUtility.ToJson(data));
+    }
+
+public bool IsSet(List<CardIdentifier> Allcards)
+    {
+        if (Allcards.Count < 3)
+        {
+            //Debug.Log("Not Enough Card For Validation");
+            return false;
+        }
+
+        List<CardIdentifier> WildCards = Allcards.FindAll(t => t.IsWildCard);
+        Allcards.RemoveAll(t => t.IsWildCard);
+        if (Allcards.Count + WildCards.Count < 5 && Allcards.Count > 0)
+        {
+            string TypeOfSet = Allcards.Max(t => t.Rank);
+            CardIdentifier[] SetCards = new CardIdentifier[4];
+            bool[] AllTypeUsed = new bool[4];
+            int i = 0, j = 0;
+            // all types of suits 
+            for (i = 0; i < AllTypeUsed.Length; i++)
+            {
+                AllTypeUsed[i] = false;
+            }
+            // looping cards without wild cards
+            for (i = 0; i < Allcards.Count; i++)
+            {   // check if the card is of the same type, rank= value
+                if (Allcards[i].Rank == TypeOfSet)
+                {   // alltypes used if not exist of true, then setcard.push allcards[i], mark it as true. 
+                    if (!AllTypeUsed[(int)Enum.Parse(typeof(AllCardTypes), Allcards[i].Suit)])
+                    {
+                        SetCards[j] = Allcards[i];
+                        AllTypeUsed[(int)Enum.Parse(typeof(AllCardTypes), Allcards[i].Suit)] = true;
+                        j++;
+                    }
+                    else
+                    {
+                        //Debug.Log("Same Card Twice");
+                        return false;
+                    }
+                }
+                else
+                {
+                    //Debug.Log("Differnt Type Card");
+                    return false;
+                }
+            }
+            for (i = 0; i < SetCards.Length; i++)
+            {
+                if (SetCards[i] == null && WildCards.Count > 0)
+                {
+                    SetCards[i] = WildCards[0];
+                }
+            }
+            return true;
+        }
+        else
+        {
+            //Debug.Log("More Than 4 Cards");
+            return false;
+        }
+    }
+
+    internal CardIdentifier[] SetCards;
+
+    public bool IsRealSequence(List<CardIdentifier> Allcards)
+    {
+        if (Allcards.Count < 3)
+        {
+            //Debug.Log("Not Enough Card For Validation");
+            return false;
+        }
+        //if (Allcards.Find(t => t.IsWildCard) != null)
+        //{
+        //    Debug.Log("Meld with Wild Card are Invalid");
+        //    return false;
+        //}
+
+        var queryAllCards = from student in Allcards
+                            group student by student.Suit into newGroup
+                            select newGroup;
+
+        SetCards = new CardIdentifier[14];
+        int KeyCount = 0, i = 0, FilledStart = -1, FilledEnd = 15,
+            counter = Allcards.Count;
+
+        foreach (var item in queryAllCards)
+        {
+            //Console.WriteLine($"Key: {item.Key}");
+            KeyCount++;
+        }
+        if (KeyCount < 2)
+        {
+            for (i = 0; i < Allcards.Count; i++)
+            {
+                if (SetCards[RankToInt(Allcards[i].Rank) - 1] == null)
+                {
+                    SetCards[RankToInt(Allcards[i].Rank) - 1] = Allcards[i];
+                    if (RankToInt(Allcards[i].Rank) - 1 == 0)
+                    {
+                        SetCards[13] = Allcards[i];
+                    }
+                }
+                else
+                {
+                    //Debug.Log("Same Card Twice");
+                    return false;
+                }
+            }
+            for (i = 0; i < SetCards.Length; i++)
+            {
+                if (SetCards[i] != null)
+                {
+                    if (FilledStart == -1)
+                    {
+                        FilledStart = i;
+                    }
+                    counter--;
+                }
+                else
+                {
+                    if (FilledStart > -1 && counter == 0)
+                    {
+                        FilledEnd = i - 1;
+                        break;
+                    }
+                    else if (FilledStart > -1 && counter > 0)
+                    {
+                        FilledStart = -1;
+                        counter = Allcards.Count;
+                    }
+                }
+            }
+            if (FilledStart > -1 && counter == 0)
+            {
+                if (FilledEnd == 15)
+                {
+                    FilledEnd = i - 1;
+                }
+                //Debug.Log(FilledStart);
+                //Debug.Log(FilledEnd);
+                return true;
+            }
+            else
+            {
+                //Debug.Log("Has Space B/W Card");
+                return false;
+            }
+        }
+        else
+        {
+            //Debug.Log("Differnt Type Card");
+            return false;
+        }
+    }
+
+    public bool IsSequence(List<CardIdentifier> Allcards)
+    {
+        if (Allcards.Count < 3)
+        {
+            //Debug.Log("Not Enough Card For Validation");
+            return false;
+        }
+
+        List<CardIdentifier> WildCards = Allcards.FindAll(t => t.IsWildCard);
+        Allcards.RemoveAll(t => t.IsWildCard);
+        var queryAllCards = from student in Allcards
+                            group student by student.Suit into newGroup
+                            select newGroup;
+
+        SetCards = new CardIdentifier[14];
+        int KeyCount = 0, i = 0, FilledStart = -1, FilledEnd = 15,
+            counter = Allcards.Count + WildCards.Count,
+           WildCardcounter = WildCards.Count;
+
+
+        foreach (var item in queryAllCards)
+        {
+            //Console.WriteLine($"Key: {item.Key}");
+            KeyCount++;
+        }
+        if (KeyCount < 2)
+        {
+            if (Allcards.Count == 1 && WildCards.Count == 2)
+            {
+                return true;
+            }
+            for (i = 0; i < Allcards.Count; i++)
+            {
+                if (SetCards[RankToInt(Allcards[i].Rank) - 1] == null)
+                {
+                    SetCards[RankToInt(Allcards[i].Rank) - 1] = Allcards[i];
+                    if (RankToInt(Allcards[i].Rank) - 1 == 0)
+                    {
+                        SetCards[13] = Allcards[i];
+                    }
+                }
+                else
+                {
+                    //Debug.Log("Same Card Twice");
+                    return false;
+                }
+            }
+
+            for (i = 0; i < SetCards.Length; i++)
+            {
+                if (SetCards[i] != null)
+                {
+                    if (FilledStart == -1)
+                    {
+                        FilledStart = i;
+                    }
+                    counter--;
+                }
+                else
+                {
+                    if (FilledStart != -1 && WildCardcounter > 0)
+                    {
+                        WildCardcounter--;
+                        counter--;
+                    }
+                    else if (FilledStart > -1 && counter == 0)
+                    {
+                        FilledEnd = i - 1;
+                        break;
+                    }
+                    else if (FilledStart > -1 && counter > 0)
+                    {
+                        FilledStart = -1;
+                        counter = Allcards.Count + WildCards.Count;
+                        WildCardcounter = WildCardcounter = WildCards.Count;
+                    }
+                }
+            }
+
+            if (FilledStart > -1 && counter - WildCardcounter == 0)
+            {
+                if (FilledEnd == 15)
+                {
+                    FilledEnd = i - 1;
+                }
+                //Debug.Log(FilledStart);
+                //Debug.Log(FilledEnd);
+                return true;
+            }
+            else
+            {
+                //Debug.Log("Has Space B/W Card");
+                return false;
+            }
+        }
+        else
+        {
+            //Debug.Log("Differnt Type Card");
+            return false;
+        }
+    }
+
+    public int RankToInt(string Rank)
+    {
+        if (Rank == "A")
+        {
+            return 1;
+        }
+        else if (Rank == "K")
+        {
+            return 13;
+        }
+        else if (Rank == "Q")
+        {
+            return 12;
+        }
+        else if (Rank == "J")
+        {
+            return 11;
+        }
+        else
+        {
+            return int.Parse(Rank);
+        }
+    }
+
+Constant Sending/Receiving To/from server
+
+public class CardConstant
+{
+    public const string Club = "club";
+    public const string Spade = "spade";
+    public const string Dimond = "diamond";
+    public const string Heart = "heart";
+    public const string Joker = "joker";
+
+    public const string PureSequence = "Pure Sequence";
+    public const string InpureSequence = "Sequence";
+    public const string Set = "Set";
+    public const string Invalid = "Invalid";
+
+    public const string OpenDeck = "-Deck";
+
+}

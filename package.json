@@ -1,0 +1,32 @@
+{
+  "name": "main",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@socket.io/redis-adapter": "^7.0.0",
+    "amqplib": "^0.10.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.1",
+    "express": "^4.17.1",
+    "helmet": "^4.6.0",
+    "http": "0.0.1-security",
+    "ioredis": "^4.28.0",
+    "joi": "^17.4.2",
+    "jsonwebtoken": "^8.5.1",
+    "log4js": "^6.4.7",
+    "method-override": "^3.0.0",
+    "mongoose": "^6.0.12",
+    "mssql": "^8.1.2",
+    "needle": "^3.1.0",
+    "redis": "^3.1.2",
+    "socket.io": "^4.3.1",
+    "tx2": "^1.0.5"
+  }
+}

@@ -1,0 +1,13 @@
+
+module.exports = {
+     INVALID_SOCKET_CONNECTION_PARAMS: 1,
+     INVALID_TABLE_INIT_PARAMS : 2,
+     TRY_SEARCHING_AGAIN : 7,
+     SUCCESS : 200,
+     ERROR : 400,
+     ERROR_GAME : 3,
+     NO_OPPONENT_FOUND : 9,
+     GAME_FINISED : 8,
+     GAME_WAITING: 10
+
+}
